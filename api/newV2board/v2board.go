@@ -316,15 +316,72 @@ func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
 
 // parseTrojanNodeResponse parse the response for the given nodeInfo format
 func (c *APIClient) parseTrojanNodeResponse(s *serverConfig) (*api.NodeInfo, error) {
+	// Determine transport protocol, default to tcp
+	transportProtocol := "tcp"
+	if s.Network != "" {
+		transportProtocol = s.Network
+	}
+
+	var (
+		host        string
+		serviceName string
+		path        string
+		header      json.RawMessage
+	)
+
+	serviceName = s.ServerName // default to SNI server name
+
+	switch transportProtocol {
+	case "grpc":
+		serviceName = s.NetworkSettings.ServiceName
+	case "ws":
+		path = s.NetworkSettings.Path
+		if s.NetworkSettings.Headers != nil {
+			if httpHeader, err := s.NetworkSettings.Headers.MarshalJSON(); err == nil {
+				b, _ := simplejson.NewJson(httpHeader)
+				host = b.Get("Host").MustString()
+			}
+		}
+		if s.NetworkSettings.Host != "" {
+			host = s.NetworkSettings.Host
+		}
+	case "tcp":
+		if s.NetworkSettings.Header != nil {
+			if httpHeader, err := s.NetworkSettings.Header.MarshalJSON(); err == nil {
+				header = httpHeader
+			}
+		}
+	case "httpupgrade", "splithttp":
+		path = s.NetworkSettings.Path
+		if s.NetworkSettings.Headers != nil {
+			if httpHeaders, err := s.NetworkSettings.Headers.MarshalJSON(); err == nil {
+				b, _ := simplejson.NewJson(httpHeaders)
+				host = b.Get("Host").MustString()
+			}
+		}
+		if s.NetworkSettings.Host != "" {
+			host = s.NetworkSettings.Host
+		}
+	}
+
+	if host == "" {
+		host = s.Host
+	}
+
+	// Trojan requires TLS by default
+	enableTLS := true
+
 	// Create GeneralNodeInfo
 	nodeInfo := &api.NodeInfo{
 		NodeType:          c.NodeType,
 		NodeID:            c.NodeID,
 		Port:              uint32(s.ServerPort),
-		TransportProtocol: "tcp",
-		EnableTLS:         true,
-		Host:              s.Host,
-		ServiceName:       s.ServerName,
+		TransportProtocol: transportProtocol,
+		EnableTLS:         enableTLS,
+		Host:              host,
+		Path:              path,
+		ServiceName:       serviceName,
+		Header:            header,
 		NameServerConfig:  s.parseDNSConfig(),
 	}
 	return nodeInfo, nil
@@ -425,6 +482,8 @@ func (c *APIClient) parseV2rayNodeResponse(s *serverConfig) (*api.NodeInfo, erro
 		if s.NetworkSettings.Host != "" {
 			host = s.NetworkSettings.Host
 		}
+	case "grpc":
+		// gRPC uses ServiceName, no special header handling needed
 	}
 
 	switch s.Tls {
