@@ -30,6 +30,18 @@ The compiled binary should be uploaded as a GitHub Release asset, not committed 
 
 ## Debian VPS Install
 
+One-click install:
+
+```bash
+wget -N https://raw.githubusercontent.com/gongseas/XrayRre/master/install.sh && bash install.sh
+```
+
+Alternative with curl:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/gongseas/XrayRre/master/install.sh)
+```
+
 Upload the compiled `XrayR` binary and install it:
 
 ```bash
@@ -79,4 +91,3 @@ Upload this file to the GitHub Release asset list as:
 ```text
 XrayR-linux-amd64
 ```
-
